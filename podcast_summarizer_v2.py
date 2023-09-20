@@ -1,34 +1,35 @@
-from youtube_video_chapters import format_chapters, get_video_chapters
+# Others
 import os
-import textwrap
-from langchain.chat_models import ChatOpenAI
-from langchain import PromptTemplate
-from langchain.chains.summarize import load_summarize_chain
-from langchain.docstore.document import Document
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.callbacks import get_openai_callback
-from langchain.document_loaders import YoutubeLoader
-from langchain.chains import LLMChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-import tiktoken
-from enum import Enum
-from collections import defaultdict
+from youtube_video_chapters import fetch_chapters, load_transcript
 from fpdf import FPDF
+# LangChain basics
+from langchain.chat_models import ChatOpenAI
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
+# Chat Prompt templates for dynamic values
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate
+)
+# Vector Store and retrievals
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.vectorstores import Pinecone
+import tiktoken
+import pinecone
 
 
 def string_to_pdf(input_str, filename="output.pdf", font_path="ARIALUNI.TTF"):
     pdf = FPDF()
     pdf.add_page()
-
     # Add the font ensuring it supports Unicode characters
     pdf.add_font("ArialUnicode", style="", fname=font_path, uni=True)
     pdf.set_font("ArialUnicode", size=12)
-
     # Add a cell
     pdf.multi_cell(0, 10, input_str)
-
     # Output the PDF to a file
-    pdf.output(filename)
+    pdf.output(filename) 
 
 # count the tokens
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -53,195 +54,175 @@ def openaipricing(input_text: str, output_text: str, model_name: str = None) -> 
     output_cost=output_tokens*out_costs[model_name]/1000.
     return input_cost+output_cost
 
-# load the transcript
-def load_document(video_url):
-    loader = YoutubeLoader.from_youtube_url(video_url, add_video_info=True)
-    document=loader.load()
-    # metadata
-    # for dictionary in result[0].metadata:
-    # for key, value in result[0].metadata.items():
-    #     print(f'Key: {key}, Value: {value}')
-    return document[0].page_content
+def TranscriptChunking(document):
+    docs = []  # Initialize as empty list so it's always defined
 
-# split document 
-def TranscriptChunking(document, model_name, input_text_percentage, overlap_percentage):
-    # Define model context limitations
-    model_context = {
-        "gpt-3.5-turbo-16k": 16384,
-        "gpt-3.5-turbo": 4096,
-        "gpt-4": 8192
-
-    }
-
-    # Get the maximum token limit for the specified model
-    max_tokens = model_context[model_name]
-
-    # Calculate the chunk size and overlap size in tokens
-    chunk_size = max_tokens * input_text_percentage // 1
-    overlap_size = chunk_size * overlap_percentage // 1
-
-    # Convert chunk size and overlap size to characters
-    chunk_size_char = chunk_size * 4
-    overlap_size_char = overlap_size * 4
-
-    # define the text splitter 
-    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", " "], chunk_size=chunk_size_char, chunk_overlap=overlap_size_char)
-    
-    # Use the text splitter to split the document into chunks
-    segmented_documents = text_splitter.split_text(document)
-
-    docs = [Document(page_content=t) for t in segmented_documents]
-    print(len(docs))
-
+    if document is None:
+        return docs  # Return an empty list, or raise an exception if you prefer
+    elif not isinstance(document, (str, bytes)):
+        return docs  # Return an empty list, or raise an exception if you prefer
+    else:
+        text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", " "], chunk_size=100, chunk_overlap=20)
+        # Use the text splitter to split the document into chunks
+        segmented_documents = text_splitter.split_text(document)
+        docs = [Document(page_content=t) for t in segmented_documents]
     return docs
 
+def print_embedding_cost(texts):
+    import tiktoken
+    enc = tiktoken.encoding_for_model('text-embedding-ada-002')
+    total_tokens = sum([len(enc.encode(page.page_content)) for page in texts])
+    print(f'Total Tokens: {total_tokens}')
+    print(f'Embedding Cost in USD: {total_tokens / 1000 * 0.0004:.6f}')
+        
+def create_vector_store(docs):
+    # Download embeddings from OpenAI
+    embeddings = OpenAIEmbeddings()
+    # initialize Pinecone
+    pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment=os.environ.get('PINECONE_ENV'))
+    # deleting all indexes
+    # indexes = pinecone.list_indexes()
+    # for i in indexes:
+    #     print('Deleting all indexes ... ', end='')
+    #     pinecone.delete_index(i)
+    #     print('Done')
 
+    # creating an index
+    index_name = 'podcast-summarizer'
+    if index_name not in pinecone.list_indexes():
+        print(f'Creating index {index_name} ...')
+        pinecone.create_index(index_name, dimension=1536, metric='cosine')
+        print('Done!')
+
+    # If you want to delete your vectors in your index to start over, run the code below!
+    index = pinecone.Index(index_name)
+    index.delete(delete_all='true')
+    
+    vector_store = Pinecone.from_documents(docs, embeddings, index_name=index_name)
+    
+    return vector_store
+
+def init_vector_store(video_url):
+    # Initialize as empty to make sure it's always defined
+    vector_store = None
+    
+    # Load the transcript
+    result = load_transcript(video_url)
+    
+    # Check if the document is valid
+    if result is None:
+        return vector_store  # Return None or an empty structure, or raise an exception if you prefer
+    elif not isinstance(result, (str, bytes)):
+        return vector_store  # Return None or an empty structure, or raise an exception if you prefer
+    
+    # Split the transcript
+    docs = TranscriptChunking(result)
+    
+    # If TranscriptChunking returns an empty list, you might want to handle it here
+    if not docs:
+        return vector_store  # Return None or an empty structure, or raise an exception if you prefer
+    
+    # Create vector store
+    vector_store = create_vector_store(docs)
+    
+    return vector_store
+
+    
 # summarize podcast transcript
-def summarize_podcast_transcript(video_url,model_name,input_text_percentage,overlap_percentage):
-    # load the transcript
-    result=load_document(video_url)
-    # split the transcript
-    docs=TranscriptChunking(result, model_name, input_text_percentage, overlap_percentage)
-    docs_num=len(docs)
+def summarize_podcast_transcript(model_name, chapter, vector_store, summary_type):
 
-    # load ChatOpenAI object
+    # Initialize an empty result dictionary
+    result = {}
+    
+    # Validate vector_store
+    if vector_store is None:
+        return result  # Return empty result or raise an exception if you prefer
+    
+    
+    # Validate summary_type value
+    if summary_type not in ["bullet points", "paragraph"]:
+        raise ValueError("Invalid summary_type. Accepted values are 'bullet points' or 'paragraph'.")
+
+    # Load ChatOpenAI object
     llm = ChatOpenAI(temperature=0, model=model_name)
-    # get video chapters
-    video_chapters=get_video_chapters(video_url)
-    formatted_chapters=format_chapters(video_chapters)
-    print(formatted_chapters)
     
-    if(docs_num==1):
-        prompt_summary_template = """
-        Based on the provided podcast transcript, generate an incisive summary that distills the salienthe structure outlined below:t points and the actionable insights of each topic. 
-        Highlight any resources mentioned during the discussion. The summaries should follow 
-        
-        Topic: Name the topic from this list: {formatted_chapters}
+    system_template = f"""
+    You will be given a transcript from a podcast that discusses multiple topics. The transcript will be enclosed within triple backticks (` ``` `).
+    Your task is to create a focused, yet comprehensive summary centering on the specific topic requested by the user. 
+    - The summary should not exceed 100 words.
+    - Emphasize key arguments, contrasting perspectives, and notable insights related to the chosen topic.
+    - Enumerate any referenced resources, such as books, websites, films, or documentaries.
+    - Remove any redundant or irrelevant details to maintain conciseness.
+    - Utilize {summary_type} format to coherently structure and present the essential ideas.
+    - Include only information that pertains directly to the topic specified by the user.
+    ```{{context}}```
 
-        Takeaways: 
-        - Make a bullet-point list of the main ideas and steps from the conversation. Avoid starting sentences with repetitive phrases such as "The podcast discusses...". Instead, focus on summarizing the essence of the discussion directly.
-        - Keep your summary short and to the point, without repeating information. 
-        - Don't forget to mention any tools, books, websites, etc., talked about in the podcast that can help listeners learn more.
-        {formatted_chapters}\n
-        
-        Podcast Transcript:
-        {text}\n
-        """
+    """
 
-        PROMPT = PromptTemplate(
-            template=prompt_summary_template,
-            input_variables=["formatted_chapters","text"])
-        chain = load_summarize_chain(llm, 
-                        chain_type="stuff", 
-                        prompt=PROMPT)
-        output_summary = chain.run({'formatted_chapters': formatted_chapters,
-                            'text': docs,
-                            'input_documents':""})
-        
-    else:
-        map_prompt = """
-        You're a virtual assistant designed to summarize podcast segments. Follow these rules:
-        - You'll receive a transcript segment enclosed within double quotes.
-        - You'll also find a provided list of potential topics enclosed within triple backticks.
-        - Read through the segment and list first.
-        - Match the content of the segment to the potential topics from the list.
-        - Extract core arguments, opinions, and insights related to each topic. Avoid simply stating that a discussion or mention occurred.
-        - Only include summaries for topics that are explicitly discussed in the segment. If a topic is not discussed, do not include it in the summary.
-        - Present the summaries in the order that topics appear in the list.
-
-        Format:
-        Topic: Use names from the list.
-        - Be concise but thorough.
-        - Include any relevant resources like tools, books, or websites mentioned in the discussion.
-
-        **List of Topics (between triple backticks)**: 
-        ```{formatted_chapters}```
-
-        **Transcript Segment**: 
-        ""{text}""
-        """
-
-        map_prompt_template = PromptTemplate(
-            template=map_prompt,
-            input_variables=["text","formatted_chapters"])
-
-        combine_prompt = """
-        You are a virtual assistant set to consolidate duplicate topic summaries from a podcast. Follow these rules:
-
-        - You'll receive multiple summaries enclosed within double quotes.
-        - Read through the summaries first.
-        - Merge summaries with identical topic names. Each topic should be unique in the final output.
-        - If a topic is mentioned but not actually discussed in the summaries, exclude it entirely from the consolidated summaries. There should be no topic headers without content.
-        - Extract and emphasize the core arguments, opinions, and insights from across the summaries.
-        - Be concise but thorough, and remove redundant info.
-        - Follow the list order of topics when merging summaries. Pay special attention to frequently mentioned resources or important points.
-
-        For each set of duplicate topics:
-        - Condense unique main ideas into bullet points.
-        - Include frequently mentioned resources like tools, books, or websites.
-
-        Before concluding, ensure that the consolidated summaries are accurate, clear, and devoid of redundancies.
-
-        Order the consolidated summaries based on the list of topics provided between triple backticks.
-
-        **Topics Discussed**: 
-        ""{text}""
-        **List of Topics (between triple backticks)**: 
-        ```{formatted_chapters}```
-        """
-
-        combine_prompt_template = PromptTemplate(
-            template=combine_prompt,
-            input_variables=["text","formatted_chapters"])      
+    messages = [
+        SystemMessagePromptTemplate.from_template(system_template),
+        HumanMessagePromptTemplate.from_template("{question}"),
+    ]
     
-        chain = load_summarize_chain(llm=llm, 
-                                chain_type='map_reduce',
-                                map_prompt=map_prompt_template,
-                                combine_prompt=combine_prompt_template,
-                                verbose=True
-                                )
-        
-        output_summary = chain.run({'formatted_chapters': formatted_chapters,
-                    'input_documents': docs})
-        
-
-        # output_summary = chain.run({'formatted_chapters': formatted_chapters,
-        #                     'text': chunks,
-        #                     'input_documents':""})        
-    return output_summary
+    CHAT_PROMPT = ChatPromptTemplate.from_messages(messages)
+    
+    qa = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=vector_store.as_retriever(),
+        chain_type_kwargs={
+            'prompt': CHAT_PROMPT
+        }
+    )
+    
+    # Handling a single chapter
+    query = chapter
+    expanded_topic = qa.run(query)
+    
+    return {'chapter': chapter, 'summary': expanded_topic}
 
 if __name__ == "__main__":
-    
-    import os
-    openai_api_key="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"
+    # Initialize environment variables
+    openai_api_key = "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"
     os.environ["OPENAI_API_KEY"] = openai_api_key
-    google_api_key='AIzaSyDFx4jp1RNN9ilcomlA6I0wd0lk3W9-ATY'
+    google_api_key = 'AIzaSyDFx4jp1RNN9ilcomlA6I0wd0lk3W9-ATY'
     os.environ["GOOGLE_API_KEY"] = google_api_key
-    #default_model='gpt-3.5-turbo'
-    #os.environ["OPENAI_MODEL"] = default_model
+    pinecone_api_key = '0aa48981-829c-47f4-a0d7-378961cb11be'
+    os.environ["PINECONE_API_KEY"] = pinecone_api_key
+    pinecone_env = 'asia-southeast1-gcp-free'
+    os.environ["PINECONE_ENV"] = pinecone_env
+    
+    # Sample video URL
+    video_url = "https://www.youtube.com/watch?v=KopLe5NZBJc"
+    
+    # Initialize the vector store
+    vector_store = init_vector_store(video_url)
+    
+    # Check if vector store initialization was successful
+    if vector_store is None:
+        print("Failed to initialize vector store.")
+        exit(1)
+    
+    # Sample chapter to summarize
+    # https://www.youtube.com/watch?v=h6yIyks16FA&t=2s
+    # https://www.youtube.com/watch?v=KopLe5NZBJc
+    youtube_podcast_url = 'https://www.youtube.com/watch?v=h6yIyks16FA&t=2s'
+    chapters_data = fetch_chapters(youtube_podcast_url)
+    print(chapters_data)
+    chapter_to_summarize = chapters_data['Chapters'][2]
+    print(chapter_to_summarize)
+    
+    # # Specify the model and summary type
+    model_name = "gpt-3.5-turbo"
+    summary_type = "bullet points"
+    
+    # Summarize the chapter
+    summary_result = summarize_podcast_transcript(model_name, chapter_to_summarize, vector_store, summary_type)
+    
+    # Display the summary
+    print(f"Summary for {chapter_to_summarize}:")
+    print(summary_result.get('summary', 'Summary not available'))
 
-    # podcasts videos (testing)
-    # https://www.youtube.com/watch?v=HekHk6yLmF0&t=3468s
-    # https://www.youtube.com/watch?v=Mde2q7GFCrw&t=5453s
-    # https://www.youtube.com/watch?v=3TV3dNJGqGI&t=3491s
-    # https://www.youtube.com/watch?v=F80WmftF5YY&t=12s
-    # https://www.youtube.com/watch?v=ofAOwyKuKxI
-    # https://www.youtube.com/watch?v=aZ-BjJZxNoA
-    # https://www.youtube.com/watch?v=h6yIyks16FA
-    youtube_podcast_url='https://www.youtube.com/watch?v=0oTMnSwFyn0'
-
-    #result=load_document(youtube_podcast_url)
-    #chunks=TranscriptChunking(result, 'gpt-3.5-turbo-16k', 0.8, 0.1)
-
-    #summarize the podcast 
-    summary=summarize_podcast_transcript(youtube_podcast_url,'gpt-3.5-turbo',0.8,0.2)
-
-    #print(summary)
-    # write summary to a file named podcast_summary.txt
-    #with open("podcast_summary.txt", "w") as f:
-    #    f.write(summary)
-
-    string_to_pdf(summary, "summary.pdf")
 
 
 
