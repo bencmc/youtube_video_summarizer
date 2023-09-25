@@ -73,7 +73,7 @@ def fetch_chapters(video_url):
     # Create PromptTemplate object
     prompt_template = """
     Your task is to extract chapter titles from the given YouTube video description. The description is enclosed between triple ticks. 
-    Chapters are often listed under sections labeled as 'Chapters,' 'Outline,' 'Show Notes,' or even in unnamed sections. 
+    Chapters are often listed under sections labeled as 'Chapters', 'Outline', 'Show Notes', 'Timestamps' or even in unnamed sections. 
     They usually come with timestamps, either before or after the text description.
 
     {format_instructions}
@@ -84,6 +84,7 @@ def fetch_chapters(video_url):
     - (1:04:58) Fraught NATO summit, ammo crisis, Sweden joins NATO
     - 09:48 Semantic memory
     - Seth details the real power our decisions have on our happiness. [11:52]
+    - 00:12:49 Disagreeableness, Social Resistance; Loneliness & Group Think 
 
     Your task is to focus only on the chapter titles, disregarding the timestamps.
 

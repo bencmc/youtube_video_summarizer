@@ -15,9 +15,9 @@ from langchain.prompts.chat import (
 # Vector Store and retrievals
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
-from langchain.vectorstores import Pinecone
 import tiktoken
-import pinecone
+from langchain.vectorstores import Chroma
+
 
 
 def string_to_pdf(input_str, filename="output.pdf", font_path="ARIALUNI.TTF"):
@@ -62,7 +62,11 @@ def TranscriptChunking(document):
     elif not isinstance(document, (str, bytes)):
         return docs  # Return an empty list, or raise an exception if you prefer
     else:
-        text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", " "], chunk_size=100, chunk_overlap=20)
+        # 100/20
+        # 1000/200
+        # 2000/500
+        # 500/100
+        text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", " "], chunk_size=2000, chunk_overlap=500)
         # Use the text splitter to split the document into chunks
         segmented_documents = text_splitter.split_text(document)
         docs = [Document(page_content=t) for t in segmented_documents]
@@ -75,33 +79,6 @@ def print_embedding_cost(texts):
     print(f'Total Tokens: {total_tokens}')
     print(f'Embedding Cost in USD: {total_tokens / 1000 * 0.0004:.6f}')
         
-def create_vector_store(docs):
-    # Download embeddings from OpenAI
-    embeddings = OpenAIEmbeddings()
-    # initialize Pinecone
-    pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment=os.environ.get('PINECONE_ENV'))
-    # deleting all indexes
-    # indexes = pinecone.list_indexes()
-    # for i in indexes:
-    #     print('Deleting all indexes ... ', end='')
-    #     pinecone.delete_index(i)
-    #     print('Done')
-
-    # creating an index
-    index_name = 'podcast-summarizer'
-    if index_name not in pinecone.list_indexes():
-        print(f'Creating index {index_name} ...')
-        pinecone.create_index(index_name, dimension=1536, metric='cosine')
-        print('Done!')
-
-    # If you want to delete your vectors in your index to start over, run the code below!
-    index = pinecone.Index(index_name)
-    index.delete(delete_all='true')
-    
-    vector_store = Pinecone.from_documents(docs, embeddings, index_name=index_name)
-    
-    return vector_store
-
 def init_vector_store(video_url):
     # Initialize as empty to make sure it's always defined
     vector_store = None
@@ -123,11 +100,10 @@ def init_vector_store(video_url):
         return vector_store  # Return None or an empty structure, or raise an exception if you prefer
     
     # Create vector store
-    vector_store = create_vector_store(docs)
+    vector_store = Chroma.from_documents(docs, OpenAIEmbeddings())
     
     return vector_store
 
-    
 # summarize podcast transcript
 def summarize_podcast_transcript(model_name, chapter, vector_store, summary_type):
 
@@ -147,17 +123,20 @@ def summarize_podcast_transcript(model_name, chapter, vector_store, summary_type
     llm = ChatOpenAI(temperature=0, model=model_name)
     
     system_template = f"""
-    You will be given a transcript from a podcast that discusses multiple topics. The transcript will be enclosed within triple backticks (` ``` `).
-    Your task is to create a focused, yet comprehensive summary centering on the specific topic requested by the user. 
-    - The summary should not exceed 100 words.
-    - Emphasize key arguments, contrasting perspectives, and notable insights related to the chosen topic.
-    - Enumerate any referenced resources, such as books, websites, films, or documentaries.
-    - Remove any redundant or irrelevant details to maintain conciseness.
-    - Utilize {summary_type} format to coherently structure and present the essential ideas.
-    - Include only information that pertains directly to the topic specified by the user.
-    ```{{context}}```
+        You will receive a discussion transcript enclosed within triple backticks (` ``` `).
+        Your task is to synthesize a succinct and focused summary on the user-specified topic, strictly adhering to the following guidelines:
+        - **Word Limit:** Your summary must not exceed 200 words. Be concise and omit unnecessary details.
+        - **Format:** Use {summary_type} format to present explicit details, distinct insights, or specific points from the transcript clearly and succinctly.
+        - **Relevance:** Emphasize only the concrete information and insights directly related to the topic. Exclude any generalized, indicative, or extraneous language.
+        - **References:** If any resources are referenced, list them concisely by title and author only.
+        - **Participant Names:** Use known names of participants if provided in the transcript.
+        Adherence to the following is crucial:
+        - Include only information explicitly stated in the transcript, avoiding any inferences, assumptions, or embellishments.
+        - Do not make statements about the presence or absence of references or about further exploration unless specific resources are cited in the transcript.
+        ```{{context}}```
+        """
 
-    """
+
 
     messages = [
         SystemMessagePromptTemplate.from_template(system_template),

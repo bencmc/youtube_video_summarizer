@@ -42,7 +42,6 @@ def string_to_pdf_bytes(podcast_info, summary_text):
 
     return pdf_file_bytes
 
-
 def set_environment_keys(api_keys):
     for key, value in api_keys.items():
         os.environ[key] = value
@@ -85,17 +84,9 @@ def main():
     api_keys = {
         "OPENAI_API_KEY": st.sidebar.text_input("Enter OpenAI API Key", type="password"),
         "GOOGLE_API_KEY": st.sidebar.text_input("Enter Google API Key", type="password"),
-        "PINECONE_API_KEY": st.sidebar.text_input("Enter Pinecone API Key", type="password"),
-        "PINECONE_ENV": st.sidebar.text_input("Enter Pinecone Environment", type="password")
     }
 
     podcast_url = st.sidebar.text_input("Enter YouTube Podcast URL")
-
-    # Allow the user to select an OpenAI model
-    model_choice = st.sidebar.selectbox("Choose OpenAI Model", ["gpt-3.5-turbo", "gpt-4"])
-
-    # Add a sidebar selectbox for summary type
-    summary_type = st.sidebar.selectbox("Choose Summary Type", ["paragraph", "bullet points"])
 
     all_fields_filled = all(api_keys.values()) and podcast_url
 
@@ -139,6 +130,9 @@ def main():
         st.header("Chapter Selection")
         selected_chapters, valid_selection = get_selected_chapters()
 
+        # Move the summary type selectbox here, after the chapters and before the Summarize button
+        summary_type = st.selectbox("Choose Summary Type", ["paragraph", "bullet points"])
+
         if st.button("Summarize", disabled=not valid_selection):
             # Clear previous summaries
             st.session_state.summary = []
@@ -146,14 +140,14 @@ def main():
             with st.spinner("Summarizing..."):
                 if ALL_CHAPTERS in selected_chapters:
                     for chapter in st.session_state.video_chapters['Chapters']:
-                        summary = summarize_podcast_transcript(model_choice, chapter, st.session_state.vector_store, summary_type)
+                        summary = summarize_podcast_transcript("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
                         if summary:  # Check if summary is not empty
                             st.session_state.summary.append(summary)
                         else:
                             st.warning(f"Could not generate a summary for chapter: {chapter}. There might be an issue with the video.")
                 else:
                     for chapter in selected_chapters:
-                        summary = summarize_podcast_transcript(model_choice, chapter, st.session_state.vector_store, summary_type)
+                        summary = summarize_podcast_transcript("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
                         if summary:  # Check if summary is not empty
                             st.session_state.summary.append(summary)
                         else:
