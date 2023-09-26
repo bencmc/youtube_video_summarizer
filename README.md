@@ -1,1 +1,1 @@
-# podcast_summarizer
+# youtube_video_summarizer
