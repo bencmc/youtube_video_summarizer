@@ -1,14 +1,14 @@
 import streamlit as st
-from podcast_summarizer_v2 import summarize_podcast_transcript, init_vector_store
+from transcript_processing_util import generate_video_summary, initialize_vector_store
 import os
 import io
 from fpdf import FPDF
-from youtube_video_chapters import fetch_chapters, fetch_video_info
+from youtube_chapter_extractor import fetch_chapters, fetch_video_info
 
 # Constants
 ALL_CHAPTERS = "All Chapters"
 
-def string_to_pdf_bytes(podcast_info, summary_text):
+def string_to_pdf_bytes(video_info, summary_text):
     pdf_buffer = io.BytesIO()
 
     pdf = FPDF(format='A4')  # Explicitly specify A4 format
@@ -27,9 +27,9 @@ def string_to_pdf_bytes(podcast_info, summary_text):
     # Use the Unicode font
     pdf.set_font("DejaVu", size=12)
 
-    # Add the Podcast Information
-    pdf.cell(0, 10, "Podcast Information:", ln=True)
-    pdf.multi_cell(0, 10, podcast_info)
+    # Add the video Information
+    pdf.cell(0, 10, "Video Information:", ln=True)
+    pdf.multi_cell(0, 10, video_info)
     pdf.cell(0, 10, "-----", ln=True)
 
     # Add the summary text
@@ -76,7 +76,7 @@ def display_summaries(summaries):
         st.write("---")
 
 def main():
-    st.title("Podcast Summarizer")
+    st.title("Youtube Video Summarizer")
     initialize_session_state()
 
     st.sidebar.header("User Input")
@@ -86,9 +86,9 @@ def main():
         "GOOGLE_API_KEY": st.sidebar.text_input("Enter Google API Key", type="password"),
     }
 
-    podcast_url = st.sidebar.text_input("Enter YouTube Podcast URL")
+    video_url = st.sidebar.text_input("Enter YouTube video URL")
 
-    all_fields_filled = all(api_keys.values()) and podcast_url
+    all_fields_filled = all(api_keys.values()) and video_url
 
     if all_fields_filled:
         st.sidebar.success("All fields are filled!")
@@ -96,22 +96,22 @@ def main():
 
     start_button = st.sidebar.button("Start", disabled=not all_fields_filled)
 
-    if start_button and podcast_url:
+    if start_button and video_url:
         # Clear the previous summaries
         st.session_state.summary = []
 
         with st.spinner("Initializing..."):
-            # Get video information (channel title, podcast title, tags)
-            video_info = fetch_video_info(podcast_url)
+            # Get video information (channel title, video title, tags)
+            video_info = fetch_video_info(video_url)
             st.session_state.channelTitle = video_info.get('channelTitle', 'Channel not available')
             st.session_state.title = video_info.get('title', 'Title not available')
             st.session_state.tags = video_info.get('tags', 'Tags not available')
 
-            with st.spinner("Getting podcast transcript..."):
-                st.session_state.vector_store = init_vector_store(podcast_url)
+            with st.spinner("Getting video transcript..."):
+                st.session_state.vector_store = initialize_vector_store(video_url)
 
-            with st.spinner("Fetching podcast chapters..."):
-                video_chapters = fetch_chapters(podcast_url)
+            with st.spinner("Fetching video chapters..."):
+                video_chapters = fetch_chapters(video_url)
 
             st.session_state.video_chapters = video_chapters
             if 'Chapters' in video_chapters:
@@ -120,7 +120,7 @@ def main():
                 st.error("Issue with video transcript fetching")
 
     if st.session_state.get('channelTitle') and st.session_state.get('title') and st.session_state.get('tags'):
-        st.header("Podcast Information")
+        st.header("Video Information")
         st.write(f"Channel Title: {st.session_state.channelTitle}")
         st.write(f"Title: {st.session_state.title}")
         st.write(f"Tags: {st.session_state.tags}")
@@ -140,14 +140,14 @@ def main():
             with st.spinner("Summarizing..."):
                 if ALL_CHAPTERS in selected_chapters:
                     for chapter in st.session_state.video_chapters['Chapters']:
-                        summary = summarize_podcast_transcript("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
+                        summary = generate_video_summary("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
                         if summary:  # Check if summary is not empty
                             st.session_state.summary.append(summary)
                         else:
                             st.warning(f"Could not generate a summary for chapter: {chapter}. There might be an issue with the video.")
                 else:
                     for chapter in selected_chapters:
-                        summary = summarize_podcast_transcript("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
+                        summary = generate_video_summary("gpt-3.5-turbo", chapter, st.session_state.vector_store, summary_type)
                         if summary:  # Check if summary is not empty
                             st.session_state.summary.append(summary)
                         else:
@@ -155,12 +155,12 @@ def main():
 
     # Check if the summaries already exist and display them
     if st.session_state.summary:
-        st.header("Podcast Summary")
+        st.header("Video Summary")
         display_summaries(st.session_state.summary)
 
     if st.session_state.summary:
-        # Prepare podcast information as text
-        podcast_info_text = f"Channel Title: {st.session_state.channelTitle}\nTitle: {st.session_state.title}\nTags: {st.session_state.tags}\n"
+        # Prepare video information as text
+        video_info_text = f"Channel Title: {st.session_state.channelTitle}\nTitle: {st.session_state.title}\nTags: {st.session_state.tags}\n"
 
         # Prepare summaries as text
         full_summary_text = "\n".join([
@@ -169,12 +169,12 @@ def main():
         ])
 
         # Generate the PDF
-        pdf_bytes = string_to_pdf_bytes(podcast_info_text, full_summary_text)
+        pdf_bytes = string_to_pdf_bytes(video_info_text, full_summary_text)
 
         st.download_button(
             label="Download Summary as PDF",
             data=pdf_bytes,
-            file_name="podcast_summary.pdf",
+            file_name="video_summary.pdf",
             mime="application/pdf",
         )
 
