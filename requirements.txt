@@ -13,12 +13,12 @@ cachetools==5.3.1
 certifi==2023.7.22
 charset-normalizer==3.2.0
 chroma-hnswlib==0.7.3
-chromadb==0.3.29
+chromadb
 click==8.1.7
 coloredlogs==15.0.1
 dataclasses-json==0.6.1
 exceptiongroup==1.1.3
-fastapi==0.103.1
+fastapi
 filelock==3.12.4
 flatbuffers==23.5.26
 fpdf==1.7.2
