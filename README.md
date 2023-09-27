@@ -1,6 +1,6 @@
 # YouTube Video Summarizer
 
-Youtube Video Summarizer is an open-source Streamlit application that allows users to generate summaries for YouTube videos. The application fetches video transcripts, allows users to select specific chapters to summarize, and provides the option to download the summary as a PDF.
+Youtube Video Summarizer is an application that allows users to generate summaries for YouTube videos. The application fetches video transcripts, allows users to select specific chapters to summarize, and provides the option to download the summary as a PDF.
 
 ![Screenshot from 2023-09-27 16-51-49](https://github.com/bencmc/youtube_video_summarizer/assets/9975447/37af5077-81d9-4576-b135-83b782cab44d)
 
