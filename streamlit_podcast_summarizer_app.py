@@ -35,7 +35,9 @@ def string_to_pdf_bytes(video_info, summary_text):
     # Add the summary text
     pdf.multi_cell(0, 10, summary_text)
     
-    pdf.output(pdf_buffer)
+    # Save the PDF content to the BytesIO object
+    pdf_content = pdf.output(dest='S').encode('latin1')  # Get PDF content as a string and encode it to bytes
+    pdf_buffer.write(pdf_content)
 
     pdf_file_bytes = pdf_buffer.getvalue()
     pdf_buffer.close()
