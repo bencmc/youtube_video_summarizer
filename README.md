@@ -47,7 +47,7 @@ cd [Project Directory]
 pip install -r requirements.txt
 
 # Run application
-streamlit run <filename>.py
+streamlit run youtube_video_summarizer.py 
 
 
 
