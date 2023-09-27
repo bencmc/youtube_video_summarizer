@@ -9,7 +9,7 @@ Youtube Video Summarizer is an open-source Streamlit application that allows use
 - Extract video chapters from the description or transcript.
 - Generate summaries for the entire video or selected chapters.
 - Download the generated summary as a PDF.
-- User-friendly interface with Streamlit.
+- User-friendly interface.
 
 ## How to Use
 1. Enter your OpenAI API Key and Google API Key in the appropriate fields in the sidebar under 'User Input'.
