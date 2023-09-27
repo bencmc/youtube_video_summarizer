@@ -118,3 +118,4 @@ websockets==11.0.3
 yarl==1.9.2
 youtube-transcript-api==0.6.1
 zipp==3.17.0
+pysqlite3-binary
