@@ -1,11 +1,12 @@
 # YouTube Video Summarizer
-
 Youtube Video Summarizer is an application that allows users to generate summaries for YouTube videos. The application fetches video transcripts, allows users to select specific chapters to summarize, and provides the option to download the summary as a PDF. This application is particularly useful for extracting valuable insights from content-rich videos such as podcasts, lectures, and interviews.
 
 ## Motivation
 As an avid podcast enthusiast, I found myself consuming a plethora of content on YouTube. However, I often felt the need for a tool that could help me quickly recall and reflect on the vast array of information I was absorbing. This led to the inception of Youtube Video Summarizer, a tool that not only serves as a memory aid by generating succinct summaries of the viewed content but also allows users to download these summaries as PDFs, creating a readable reference that can be revisited at any time.
 
+
 ![Screenshot from 2023-09-27 16-51-49](https://github.com/bencmc/youtube_video_summarizer/assets/9975447/37af5077-81d9-4576-b135-83b782cab44d)
+
 
 ## Features
 - Fetch and display YouTube video information including channel title, video title, and tags.
