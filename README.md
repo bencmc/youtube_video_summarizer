@@ -33,21 +33,29 @@ Youtube Video Summarizer is an open-source Streamlit application that allows use
 We welcome contributions! Please see the CONTRIBUTING.md for details on how to contribute to this project.
 
 ## License
-This project is licensed under the <Insert License Here> - see the LICENSE file for details.
+This project is licensed under the MIT license - see the LICENSE file for details.
 
 ## Installation & Setup
+
 ```sh
 # Clone the repository
-gh repo clone bencmc/youtube_video_summarizer
+git clone git@github.com:bencmc/youtube_video_summarizer.git
 
 # Navigate to the project directory
-cd [Project Directory]
+cd youtube_video_summarizer/
+
+# Set up the virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment
+# For Windows
+.\venv\Scripts\activate
+
+# For MacOS/Linux
+source venv/bin/activate
 
 # Install the required packages
 pip install -r requirements.txt
 
 # Run application
-streamlit run youtube_video_summarizer.py 
-
-
-
+streamlit run youtube_video_summarizer.py
