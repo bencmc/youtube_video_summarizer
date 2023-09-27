@@ -1,6 +1,6 @@
 import os
 from typing import Union, List, Optional, Dict
-from youtube_chapter_extractor import load_transcript
+from youtube_chapters_extractor import load_transcript
 from fpdf import FPDF
 from langchain.chat_models import ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter

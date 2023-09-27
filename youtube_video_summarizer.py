@@ -3,7 +3,7 @@ from transcript_processing_util import generate_video_summary, initialize_vector
 import os
 import io
 from fpdf import FPDF
-from youtube_chapter_extractor import fetch_chapters, fetch_video_info
+from youtube_chapters_extractor import fetch_chapters, fetch_video_info
 
 # Constants
 ALL_CHAPTERS = "All Chapters"
@@ -73,12 +73,26 @@ def get_selected_chapters():
 
 def display_summaries(summaries):
     for summary_dict in summaries:
-        st.markdown(f"**Chapter: {summary_dict['chapter']}**")
-        st.write(summary_dict['summary'])
+        chapter_title = f"<h2 style='font-size:20px;'>Chapter: {summary_dict['chapter']}</h2>"
+        
+        # If the summary contains bullet points, replace them with HTML list tags.
+        if '\n- ' in summary_dict['summary']:  # Assuming bullet points are represented by '•' character.
+            summary_text = "<ul>"
+            # Split the summary string by newline character and wrap each bullet point with <li> tags.
+            summary_text += ''.join(f"<li style='font-size:18px;'>{line[2:]}</li>" for line in summary_dict['summary'].split('\n') if line)
+            summary_text += "</ul>"
+        else:  # If no bullet points, just wrap the summary text with <p> tags.
+            summary_text = f"<p style='font-size:18px;'>{summary_dict['summary']}</p>"
+        
+        st.markdown(chapter_title, unsafe_allow_html=True)
+        st.markdown(summary_text, unsafe_allow_html=True)
         st.write("---")
 
 def main():
-    st.title("Youtube Video Summarizer")
+    youtube_logo_url = "https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_(2017).svg"  # URL of the YouTube logo without text
+    title_with_logo = f'<img src="{youtube_logo_url}" width="100" style="vertical-align: middle;"> <span style="font-size:50px; vertical-align: middle; font-weight: bold; margin-left: 10px;"> Video Summarizer</span>'
+    st.markdown(title_with_logo, unsafe_allow_html=True)  # Display the title with the logo
+    
     initialize_session_state()
 
     st.sidebar.header("User Input")
@@ -123,17 +137,18 @@ def main():
 
     if st.session_state.get('channelTitle') and st.session_state.get('title') and st.session_state.get('tags'):
         st.header("Video Information")
-        st.write(f"Channel Title: {st.session_state.channelTitle}")
-        st.write(f"Title: {st.session_state.title}")
-        st.write(f"Tags: {st.session_state.tags}")
+        st.markdown(f"<p style='font-size:18px;'><strong>Channel Title:</strong> {st.session_state.channelTitle}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:18px;'><strong>Title:</strong> {st.session_state.title}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:18px;'><strong>Tags:</strong> {', '.join(st.session_state.tags)}</p>", unsafe_allow_html=True)
 
-    # (The rest of the code remains unchanged)
+
     if st.session_state.chapters_list:
         st.header("Chapter Selection")
         selected_chapters, valid_selection = get_selected_chapters()
 
         # Move the summary type selectbox here, after the chapters and before the Summarize button
         summary_type = st.selectbox("Choose Summary Type", ["paragraph", "bullet points"])
+        
 
         if st.button("Summarize", disabled=not valid_selection):
             # Clear previous summaries
