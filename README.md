@@ -27,6 +27,7 @@ As an avid podcast enthusiast, I found myself consuming a plethora of content on
 
 ## Try it out
 
+https://youtubevideosummarizer.streamlit.app/
 
 ## Technology Stack
 - Python
