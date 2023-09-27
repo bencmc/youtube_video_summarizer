@@ -16,7 +16,7 @@ As an avid podcast enthusiast, I found myself consuming a plethora of content on
 - User-friendly interface.
 
 ## How to Use
-1. Enter your [OpenAI API Key](https://platform.openai.com/account/api-keys) and Google [API Key](https://console.cloud.google.com/apis/credentials/key) in the appropriate fields in the sidebar under 'User Input'.
+1. Enter your [OpenAI API Key](https://platform.openai.com/account/api-keys) and [Google API Key](https://console.cloud.google.com/apis/credentials/key) in the appropriate fields in the sidebar under 'User Input'.
 2. Input the YouTube video URL you want to summarize in the 'Enter YouTube video URL' field in the sidebar.
 3. Click the 'Start' button once all fields are filled.
 4. Once the video information is fetched, select the chapters you want to summarize in the 'Chapter Selection' section. You can select 'All Chapters' or specific chapters.
