@@ -12,15 +12,14 @@ from youtube_chapters_extractor import fetch_chapters, fetch_video_info
 # Constants
 ALL_CHAPTERS = "All Chapters"
 
+import unicodedata
+
 def string_to_pdf_bytes(video_info, summary_text):
     pdf_buffer = io.BytesIO()
 
     pdf = FPDF(format='A4')  # Explicitly specify A4 format
     pdf.add_page()
 
-    # Add a Unicode font
-    pdf.add_font("DejaVu", "", "DejaVuSansCondensed.ttf", uni=True)
-    
     # Set Auto Page Break
     pdf.set_auto_page_break(auto=1, margin=15)
     
@@ -28,20 +27,20 @@ def string_to_pdf_bytes(video_info, summary_text):
     pdf.set_left_margin(10)  # Set left margin to 10
     pdf.set_right_margin(10)  # Set right margin to 10
 
-    # Use the Unicode font
-    pdf.set_font("DejaVu", size=12)
+    # Use the built-in Arial font
+    pdf.set_font("Arial", size=12)
 
     # Add the video Information
     pdf.cell(0, 10, "Video Information:", ln=True)
-    pdf.multi_cell(0, 10, video_info)
+    pdf.multi_cell(0, 10, video_info.encode('UTF-8').decode('latin1'))
     pdf.cell(0, 10, "-----", ln=True)
 
     # Add the summary text
-    pdf.multi_cell(0, 10, summary_text)
+    pdf.multi_cell(0, 10, summary_text.encode('UTF-8').decode('latin1'))
     
     # Save the PDF content to the BytesIO object
-    pdf_content = pdf.output(dest='S').encode('latin1')  # Get PDF content as a string and encode it to bytes
-    pdf_buffer.write(pdf_content)
+    pdf_content = pdf.output(dest='S')  # Avoid encoding the whole PDF content
+    pdf_buffer.write(pdf_content.encode('latin1'))  # Encode to 'latin1' when writing to buffer
 
     pdf_file_bytes = pdf_buffer.getvalue()
     pdf_buffer.close()
@@ -151,7 +150,9 @@ def main():
         selected_chapters, valid_selection = get_selected_chapters()
 
         # Move the summary type selectbox here, after the chapters and before the Summarize button
-        summary_type = st.selectbox("Choose Summary Type", ["paragraph", "bullet points"])
+        #summary_type = st.selectbox("Choose Summary Type", ["paragraph", "bullet points"])
+        st.header("Summary Type")
+        summary_type = st.selectbox("Select Summary Type", ["paragraph", "bullet points"])
         
 
         if st.button("Summarize", disabled=not valid_selection):
